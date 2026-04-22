@@ -45,3 +45,6 @@ next-env.d.ts
 # Prisma
 dev.db
 dev.db-journal
+
+# Local planning docs (not part of submission)
+IMPLEMENTATION_PLAN.md

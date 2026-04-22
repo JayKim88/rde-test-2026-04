@@ -7,7 +7,171 @@ datasource db {
   provider = "sqlite"
 }
 
-model StarterPlaceholder {
-  id        Int      @id @default(autoincrement())
+// =============================================================
+// BTS (Beyond the Space) — NYC office listings
+// =============================================================
+
+model Listing {
+  id              String   @id
+  slug            String   @unique
+  address         String
+  unit            String
+  submarket       String
+  submarketNorm   String   // normalized for search (e.g., "grand central area" -> "grand central")
+  sf              Int
+  pricePerSf      Float
+  availability    String   // "immediate" | "30-days" | "60-days" | etc
+  type            String   // "direct" | "sublease"
+  condition       String   // "pre-built" | "warm-shell" | "raw"
+  buildingClass   String
+  yearBuilt       Int
+  features        String   // JSON array string (SQLite)
+  description     String
+  heroImage       String
+  photos          String   // JSON array string
+  floorplan       String
+  createdAt       DateTime @default(now())
+
+  @@index([submarketNorm])
+  @@index([sf])
+  @@index([type])
+}
+
+// =============================================================
+// PM Platform — Property Management
+// =============================================================
+
+// A physical property (building). Normalizes messy CSV property_name variants
+// like "1234 Elm St" / "1234 Elm Street" / "1234 Elm St." into one record.
+model Property {
+  id        String   @id @default(cuid())
+  name      String   // canonical display name
+  nameHash  String   @unique // normalized lowercase, stripped — used for dedup
+  units     Unit[]
   createdAt DateTime @default(now())
+}
+
+model Unit {
+  id                 String      @id @default(cuid())
+  externalId         String      @unique // from CSV (e.g. "U001")
+  propertyId         String
+  unitNumber         String
+  bedrooms           Int
+  bathrooms          Float
+  squareFeet         Int?        // nullable — negative values in source flagged as null
+  monthlyRentTarget  Float?      // nullable — NULL in source preserved
+  status             String      // "vacant" | "occupied" | etc
+  property           Property    @relation(fields: [propertyId], references: [id])
+  leases             Lease[]
+  workOrders         WorkOrder[]
+  createdAt          DateTime    @default(now())
+
+  @@index([propertyId])
+  @@index([status])
+}
+
+model Tenant {
+  id            String   @id @default(cuid())
+  externalId    String   @unique // from CSV (e.g. "T0001")
+  firstName     String
+  lastName      String
+  email         String?  // nullable — invalid/missing emails flagged in import preview
+  phone         String?
+  dateOfBirth   DateTime?
+  status        String   // "active" | "prospect" | "former" | etc
+  notes         String?
+  leases        Lease[]
+  createdAt     DateTime @default(now())
+
+  @@index([email])
+  @@index([status])
+}
+
+// Lease history model — phase-2 GL requires point-in-time queries.
+// Historical leases are never mutated; renewals create new rows.
+model Lease {
+  id                String    @id @default(cuid())
+  externalId        String    @unique // from CSV (e.g. "L0001")
+  tenantId          String?
+  unitId            String?
+  startDate         DateTime
+  endDate           DateTime
+  monthlyRent       Float
+  securityDeposit   Float?
+  status            String    // "active" | "renewed" | "expired" | "terminated"
+  tenant            Tenant?   @relation(fields: [tenantId], references: [id])
+  unit              Unit?     @relation(fields: [unitId], references: [id])
+  charges           Charge[]
+  payments          Payment[]
+  createdAt         DateTime  @default(now())
+
+  @@index([tenantId])
+  @@index([unitId])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+// Scheduled charges (rent, fees). Payments reconcile against these via leaseId+date.
+// Accounting-aware: amount + type + date sufficient for AR aging. Phase-2 GL adds account code FK.
+model Charge {
+  id          String   @id @default(cuid())
+  externalId  String   @unique
+  leaseId     String?  // nullable — orphan references preserved and flagged during import
+  chargeDate  DateTime
+  amount      Float
+  type        String   // "rent" | "repair_chargeback" | "late_fee" | etc
+  description String?
+  lease       Lease?   @relation(fields: [leaseId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([leaseId])
+  @@index([chargeDate])
+  @@index([type])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  externalId  String   @unique
+  leaseId     String?
+  paymentDate DateTime
+  amount      Float
+  method      String   // "ach" | "credit_card" | "check" | etc
+  notes       String?
+  lease       Lease?   @relation(fields: [leaseId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([leaseId])
+  @@index([paymentDate])
+}
+
+model WorkOrder {
+  id          String    @id @default(cuid())
+  externalId  String    @unique
+  unitId      String?
+  openedDate  DateTime
+  closedDate  DateTime?
+  status      String    // "open" | "closed" | "in_progress"
+  category    String    // "hvac" | "general" | "plumbing" | etc
+  description String
+  vendorName  String?
+  cost        Float?    // nullable — negative flagged during import
+  unit        Unit?     @relation(fields: [unitId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([unitId])
+  @@index([status])
+  @@index([openedDate])
+}
+
+// =============================================================
+// Import audit — enables idempotent re-imports
+// =============================================================
+
+model ImportRun {
+  id           String    @id @default(cuid())
+  source       String    // "buildium" | "appfolio" | "yardi"
+  status       String    // "pending" | "preview" | "committed" | "failed"
+  stats        String    // JSON: counts, duplicates, orphans, parse failures
+  createdAt    DateTime  @default(now())
+  committedAt  DateTime?
 }
