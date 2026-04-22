@@ -51,7 +51,7 @@ export default function Home() {
           understands what you mean.
         </p>
 
-        <SearchBox chips={CHIPS} />
+        <SearchBox chips={CHIPS} autoFocus />
 
         <p className="mt-6 text-sm text-gray-500">
           Try: {CHIPS.slice(0, 2).map((c, i) => (

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useRef, useState } from "react"
 
-export function SearchBox({ chips, defaultValue }: { chips: string[]; defaultValue?: string }) {
+export function SearchBox({ chips, defaultValue, autoFocus }: { chips: string[]; defaultValue?: string; autoFocus?: boolean }) {
   const router = useRouter()
   const [value, setValue] = useState(defaultValue ?? "")
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -35,6 +35,7 @@ export function SearchBox({ chips, defaultValue }: { chips: string[]; defaultVal
           }}
           rows={3}
           placeholder="Describe your space…"
+          autoFocus={autoFocus}
           className="w-full resize-none rounded-2xl border border-gray-300 bg-white px-5 py-4 text-lg shadow-sm transition focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
         />
         <button

@@ -1,7 +1,9 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { ScrubbableHero } from "./ScrubbableHero"
+import { ContactModal } from "./ContactModal"
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -40,6 +42,16 @@ export default async function ListingDetail({ params }: Props) {
 
   return (
     <article className="mx-auto max-w-5xl px-6 py-8">
+      <Link
+        href="/search"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-6"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        Back to search
+      </Link>
+
       <div className="mb-4 text-sm text-gray-500 uppercase tracking-wide">
         {listing.submarket} · {listing.type}
       </div>
@@ -96,9 +108,7 @@ export default async function ListingDetail({ params }: Props) {
             <div className="text-sm text-gray-500 mb-6">
               ≈ ${Math.round(listing.sf * listing.pricePerSf / 12).toLocaleString()}/mo total
             </div>
-            <button className="w-full rounded-xl bg-gray-900 py-2.5 text-white font-medium hover:bg-gray-700 mb-2">
-              Contact broker
-            </button>
+            <ContactModal address={listing.address} unit={listing.unit} />
             <button className="w-full rounded-xl border border-gray-300 py-2.5 text-gray-700 hover:bg-gray-50">
               Save to favorites
             </button>

@@ -30,6 +30,8 @@ export function ScrubbableHero({ media }: { media: Media[] }) {
   // Drag scrubbing.
   const dragState = useRef<{ startX: number; startIndex: number } | null>(null)
   const onPointerDown = (e: React.PointerEvent) => {
+    // Don't capture when clicking nav buttons — let click events through.
+    if ((e.target as HTMLElement).closest("button")) return
     dragState.current = { startX: e.clientX, startIndex: index }
     containerRef.current?.setPointerCapture(e.pointerId)
   }
@@ -79,7 +81,7 @@ export function ScrubbableHero({ media }: { media: Media[] }) {
           onClick={() => setIndex((i) => Math.max(0, i - 1))}
           disabled={index === 0}
           aria-label="Previous"
-          className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 shadow-md grid place-items-center transition hover:bg-white disabled:opacity-0 disabled:pointer-events-none"
+          className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-gray-800 shadow-md grid place-items-center transition hover:bg-white disabled:opacity-0 disabled:pointer-events-none"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6" />
@@ -90,7 +92,7 @@ export function ScrubbableHero({ media }: { media: Media[] }) {
           onClick={() => setIndex((i) => Math.min(media.length - 1, i + 1))}
           disabled={index === media.length - 1}
           aria-label="Next"
-          className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 shadow-md grid place-items-center transition hover:bg-white disabled:opacity-0 disabled:pointer-events-none"
+          className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-gray-800 shadow-md grid place-items-center transition hover:bg-white disabled:opacity-0 disabled:pointer-events-none"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="9 18 15 12 9 6" />
