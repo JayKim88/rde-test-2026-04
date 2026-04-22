@@ -46,17 +46,36 @@ export type NLResult = {
   meta?: { caption?: string }
 }
 
-const SYSTEM_PROMPT = `You translate a property manager's English question into a structured query intent. Call the classify_pm_query tool.
+function buildSystemPrompt(): string {
+  const today = new Date().toISOString().slice(0, 10)
+  const thisYear = new Date().getFullYear()
+  const lastYear = thisYear - 1
+
+  return `You translate a property manager's English question into a structured query intent. Call the classify_pm_query tool. Today is ${today}.
 
 Rules:
 - Pick the SINGLE closest intent. If nothing fits, use "unsupported".
 - Do NOT output SQL. Do NOT invent new intents.
 - If a param is not mentioned, use null. Never fabricate thresholds.
-- "past due" / "late" / "behind" / "owes" → tenants_past_due
-- "vendor" / "contractor" / "paid for repairs" → vendors_by_spend
-- "expiring" / "renewal" / "rolls" / "ending" → leases_expiring
-- "expense" / "spend" / "operating" / "cost" / "breakdown" → expense_summary_by_category
-- "total rent" / "monthly rent" / "rent roll" → rent_roll_total`
+- explanation: one short sentence restating how you interpreted the question. No bullets, no repetition.
+
+Intent mapping:
+- "past due" / "late" / "behind" / "owes" / "balance" → tenants_past_due
+- "vendor" / "contractor" / "paid for repairs" / "spent on" → vendors_by_spend
+- "expiring" / "renewal" / "rolls" / "ending" / "coming up" → leases_expiring
+- "expense" / "spend" / "operating" / "cost" / "breakdown" / "categories" → expense_summary_by_category
+- "total rent" / "monthly rent" / "rent roll" → rent_roll_total
+
+Time extraction (today = ${today}):
+- "this year" → year: ${thisYear}
+- "last year" → year: ${lastYear}
+- "this month" / "30 days" → months: 1
+- "next 3 months" / "next quarter" → months: 3
+- "6 months" → months: 6
+- "this year" with leases_expiring → months: ${12 - new Date().getMonth()}`
+}
+
+const SYSTEM_PROMPT = buildSystemPrompt()
 
 const NL_TOOL_SCHEMA = {
   type: "object",

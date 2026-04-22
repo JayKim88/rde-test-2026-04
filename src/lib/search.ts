@@ -40,12 +40,24 @@ const KNOWN_SUBMARKETS = [
 
 const SYSTEM_PROMPT = `You help users find NYC office space. Call the parse_office_query tool to return a short conversational reply and structured filters for the user's request.
 
-Rules:
-- Normalize submarket to lowercase, match one of: ${KNOWN_SUBMARKETS.join(", ")} — else null.
-- If query mentions team size (e.g., "25 people"), translate to SF: ~150 SF per person (sfMin = people × 100, sfMax = people × 250).
-- If user says "10,000 SF", set sfMin and sfMax both to 10000.
-- If query is unclear or doesn't mention specifics, set filter fields to null and explain in the response what you'd need to know.
-- Keep response conversational and brief. Don't list filters back to the user.`
+Submarket rules:
+- Normalize to lowercase, match one of: ${KNOWN_SUBMARKETS.join(", ")} — else null.
+- Aliases: "financial district" or "fidi" or "downtown" → "fidi"; "times square" → "midtown west"; "park avenue" or "lexington" or "east side" → "midtown east"; "west side" or "hell's kitchen" → "midtown west".
+- "midtown" alone (no qualifier) → null. Ask east or west in your response.
+- Never guess. If submarket is ambiguous, set null and explain.
+
+Size rules:
+- Team size (e.g., "25 people", "team of 30") → sfMin = people × 100, sfMax = people × 250.
+- Exact SF (e.g., "10,000 SF") → sfMin = sfMax = that number.
+- Approximate SF (e.g., "around 10k SF", "roughly 8,000 SF") → sfMin = value × 0.8, sfMax = value × 1.2.
+- No size mentioned → sfMin = sfMax = null.
+
+Type rules:
+- "sublease" or "sublet" → "sublease". "direct" or "permanent" → "direct". Otherwise → "any".
+
+Other rules:
+- If query is unclear, set filter fields to null and ask one specific clarifying question in the response.
+- Keep response max 2 sentences, conversational. Do not enumerate the filters back to the user.`
 
 const TOOL_INPUT_SCHEMA = {
   type: "object",
