@@ -37,6 +37,27 @@ function normalizeSubmarket(s: string): string {
   return s.toLowerCase().replace(/\s+area\s*$/i, "").trim()
 }
 
+/**
+ * Generate a canonical slug: {building-slug}-ste-{unit}-{hash}
+ * where hash is a 6-char hex derived from listing id for uniqueness.
+ * Used when the source JSON does not provide a pre-computed slug.
+ */
+function generateSlug(address: string, unit: string, id: string): string {
+  const buildingSlug = address
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+  const unitSlug = unit
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+  // Deterministic 6-char hash from listing id
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  const hashHex = hash.toString(16).padStart(6, "0").slice(0, 6)
+  return `${buildingSlug}-ste-${unitSlug}-${hashHex}`
+}
+
 async function main() {
   const path = join(process.cwd(), "data/listings.json")
   const raw: RawListing[] = JSON.parse(readFileSync(path, "utf8"))
@@ -46,11 +67,12 @@ async function main() {
   let updated = 0
 
   for (const l of raw) {
+    const slug = l.slug || generateSlug(l.address, l.unit, l.id)
     const result = await prisma.listing.upsert({
-      where: { slug: l.slug },
+      where: { slug },
       create: {
         id: l.id,
-        slug: l.slug,
+        slug,
         address: l.address,
         unit: l.unit,
         submarket: l.submarket,
