@@ -81,8 +81,8 @@ export default async function TenantDetailPage({ params }: Props) {
     <div className="mx-auto max-w-5xl px-6 py-10 space-y-8">
       {/* Header */}
       <div>
-        <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-900">
-          ← Dashboard
+        <Link href="/tenants" className="text-sm text-gray-500 hover:text-gray-900">
+          ← Tenants
         </Link>
         <div className="mt-3 flex items-end justify-between">
           <div>
