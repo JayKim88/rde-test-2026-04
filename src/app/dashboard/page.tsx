@@ -161,7 +161,29 @@ export default async function DashboardPage() {
     bucket.set(w.category, (bucket.get(w.category) ?? 0) + w.cost)
     categorySet.add(w.category)
   }
-  const categories = Array.from(categorySet).sort()
+  // Synthetic operating expenses not captured in work orders.
+  // The Buildium export covers maintenance costs; utilities/taxes/insurance are
+  // paid outside the WO system. "Synthetic fill is fine if import doesn't cover
+  // expenses" (TEST_SPEC.md §Part 3). Amounts are portfolio-scale estimates for
+  // a 52-unit building; they vary ±8% month-to-month via a deterministic hash.
+  const SYNTHETIC_CATEGORIES: Record<string, number> = {
+    utilities: 4_200,   // electric/water for common areas
+    taxes: 7_800,       // property tax spread monthly
+    insurance: 2_600,   // building insurance premium
+  }
+  const syntheticCategories = Object.keys(SYNTHETIC_CATEGORIES)
+  for (const [i, key] of monthKeys.entries()) {
+    const bucket = byMonthCat.get(key)!
+    for (const [cat, base] of Object.entries(SYNTHETIC_CATEGORIES)) {
+      // Deterministic ±8% variance: no randomness across renders.
+      const variance = 1 + ((((i * 17 + cat.charCodeAt(0)) % 16) - 8) / 100)
+      bucket.set(cat, Math.round(base * variance))
+    }
+  }
+  const categories = [
+    ...Array.from(categorySet).sort(),
+    ...syntheticCategories,
+  ]
   const chartData: MonthlySlice[] = monthKeys.map((m) => {
     const bucket = byMonthCat.get(m) ?? new Map()
     const slice: MonthlySlice = { month: m, total: 0, byCategory: {} }
@@ -179,7 +201,7 @@ export default async function DashboardPage() {
   const totalExpenses = chartData.reduce((a, s) => a + s.total, 0)
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-10 space-y-10">
+    <div className="mx-auto max-w-5xl px-6 py-10 space-y-10">
       {/* Header */}
       <header className="flex items-end justify-between">
         <div>
