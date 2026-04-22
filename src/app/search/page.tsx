@@ -6,6 +6,7 @@ import { SearchBox } from "../SearchBox"
 import { ResultsSkeleton } from "./ResultsSkeleton"
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 30
 
 type Props = { searchParams: Promise<{ q?: string }> }
 
@@ -37,25 +38,30 @@ export default async function SearchPage({ searchParams }: Props) {
   const query = (params.q ?? "").trim()
 
   return (
-    <section>
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        {!query ? (
-          <div className="rounded-2xl border border-dashed p-12 text-center text-gray-500">
-            <p className="text-lg">What are you looking for?</p>
-            <p className="text-sm mt-1">Go back and describe your space.</p>
+    <section className="mx-auto max-w-5xl px-6 py-10">
+      {!query ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="mb-4 text-4xl">🔍</div>
+          <p className="text-lg font-semibold text-[var(--color-ink)] mb-2">What are you looking for?</p>
+          <p className="text-sm text-[var(--color-ink-muted)] mb-8">Describe your ideal NYC office space below.</p>
+          <div className="w-full max-w-xl">
+            <SearchBox chips={CHIPS} autoFocus />
           </div>
-        ) : (
-          <Suspense key={query} fallback={<ResultsSkeleton />}>
-            <SearchResults query={query} />
-          </Suspense>
-        )}
-
-        {/* Refine search — bottom, chat-style */}
-        <div className="mt-12 border-t border-gray-200 pt-8">
-          <p className="text-sm text-gray-500 mb-3">Refine your search…</p>
-          <SearchBox chips={CHIPS} defaultValue="" />
         </div>
-      </div>
+      ) : (
+        <Suspense key={query} fallback={<ResultsSkeleton />}>
+          <SearchResults query={query} />
+        </Suspense>
+      )}
+
+      {query && (
+        <div className="mt-14 border-t border-[var(--color-edge)] pt-8">
+          <p className="text-xs font-medium text-[var(--color-ink-muted)] uppercase tracking-wide mb-3">
+            Refine your search
+          </p>
+          <SearchBox chips={CHIPS} defaultValue={query} />
+        </div>
+      )}
     </section>
   )
 }
@@ -70,18 +76,10 @@ async function SearchResults({ query }: { query: string }) {
     aiResponse = parsed.response
     listings = await findListings(parsed.filter)
 
-    // Degraded: filter specified but matched zero → show all with explanation.
-    const hadFilter =
-      parsed.filter.submarket || parsed.filter.sfMin || parsed.filter.sfMax
+    const hadFilter = parsed.filter.submarket || parsed.filter.sfMin || parsed.filter.sfMax
     if (listings.length === 0 && hadFilter) {
       listings = await findListings(
-        SearchFilterSchema.parse({
-          submarket: null,
-          sfMin: null,
-          sfMax: null,
-          features: [],
-          subleaseOrDirect: "any",
-        })
+        SearchFilterSchema.parse({ submarket: null, sfMin: null, sfMax: null, features: [], subleaseOrDirect: "any" })
       )
       aiResponse = `${aiResponse} I didn't find exact matches — here are all available listings so you can refine from here.`
       degraded = true
@@ -89,81 +87,92 @@ async function SearchResults({ query }: { query: string }) {
   } catch (err) {
     console.error("[search] parse failed", err)
     listings = await findListings(
-      SearchFilterSchema.parse({
-        submarket: null,
-        sfMin: null,
-        sfMax: null,
-        features: [],
-        subleaseOrDirect: "any",
-      })
+      SearchFilterSchema.parse({ submarket: null, sfMin: null, sfMax: null, features: [], subleaseOrDirect: "any" })
     )
-    aiResponse =
-      'I couldn\'t understand that precisely — showing all listings. Try something like "10,000 SF in Hudson Yards" or "sublease near Penn Station."'
+    aiResponse = 'I couldn\'t understand that precisely — showing all listings. Try something like "10,000 SF in Hudson Yards" or "sublease near Penn Station."'
     degraded = true
   }
 
   return (
     <>
       {/* AI bubble */}
-      <div className="rounded-2xl bg-gray-50 border border-gray-200 p-5 mb-6">
+      <div className="mb-6 rounded-2xl border border-[var(--color-edge)] bg-[var(--color-surface-raised)] p-5 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="mt-1 h-8 w-8 rounded-full bg-gray-900 text-white text-xs font-semibold grid place-items-center shrink-0">
+          <div className="mt-0.5 shrink-0 h-8 w-8 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold grid place-items-center">
             AI
           </div>
-          <div className="flex-1">
-            <p className="text-gray-900 leading-relaxed">{aiResponse}</p>
-            <p className="mt-2 text-sm text-gray-500">
-              Your query: <span className="italic">&ldquo;{query}&rdquo;</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[var(--color-ink)] text-sm leading-relaxed">{aiResponse}</p>
+            <p className="mt-1.5 text-xs text-[var(--color-ink-faint)]">
+              Query: <span className="italic">&ldquo;{query}&rdquo;</span>
             </p>
           </div>
         </div>
       </div>
 
-      <div className="flex items-baseline justify-between mb-4">
-        <p className="text-sm text-gray-600">
+      {/* Result count */}
+      <div className="flex items-center justify-between mb-5">
+        <p className="text-sm font-medium text-[var(--color-ink-muted)]">
           {listings.length} {listings.length === 1 ? "listing" : "listings"}
-          {degraded ? " (showing all)" : ""}
+          {degraded && <span className="ml-1.5 text-xs text-[var(--color-warning)]">(showing all)</span>}
         </p>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {listings.map((l) => (
-          <ListingCard key={l.id} listing={l} />
-        ))}
-      </div>
+      {listings.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-[var(--color-edge)] p-16 text-center text-[var(--color-ink-muted)]">
+          No listings found. Try a different query.
+        </div>
+      ) : (
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {listings.map((l) => (
+            <ListingCard key={l.id} listing={l} />
+          ))}
+        </div>
+      )}
     </>
   )
 }
 
-function ListingCard({ listing }: { listing: { id: string; slug: string; address: string; unit: string; submarket: string; sf: number; pricePerSf: number; type: string; heroImage: string; features: string } }) {
+function ListingCard({ listing }: {
+  listing: { id: string; slug: string; address: string; unit: string; submarket: string; sf: number; pricePerSf: number; type: string; heroImage: string; features: string }
+}) {
   const features: string[] = JSON.parse(listing.features)
+  const isSublease = listing.type === "sublease"
+
   return (
     <Link
       href={`/listings/${listing.slug}`}
-      className="group block overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:shadow-lg"
+      className="group block overflow-hidden rounded-2xl border border-[var(--color-edge)] bg-[var(--color-surface-raised)] transition-all hover:shadow-md hover:border-[var(--color-edge-strong)]"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={listing.heroImage}
         alt={`${listing.address} ${listing.unit}`}
-        className="w-full aspect-[4/3] object-cover bg-gray-100"
+        loading="lazy"
+        className="w-full aspect-[4/3] object-cover bg-[var(--color-surface-overlay)]"
       />
       <div className="p-4">
-        <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide mb-1">
-          <span>{listing.submarket}</span>
-          <span>·</span>
-          <span className={listing.type === "sublease" ? "text-amber-700" : ""}>{listing.type}</span>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[11px] font-medium text-[var(--color-ink-muted)] uppercase tracking-wide">
+            {listing.submarket}
+          </span>
+          <span className="text-[var(--color-edge-strong)]">·</span>
+          <span className={`text-[11px] font-semibold uppercase tracking-wide ${isSublease ? "text-amber-600" : "text-[var(--color-accent)]"}`}>
+            {listing.type}
+          </span>
         </div>
-        <h3 className="font-semibold text-gray-900 mb-1">{listing.address}</h3>
-        <p className="text-sm text-gray-600 mb-3">{listing.unit}</p>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-900 font-medium">{listing.sf.toLocaleString()} SF</span>
-          <span className="text-gray-600">${listing.pricePerSf}/SF</span>
+        <h3 className="font-semibold text-[var(--color-ink)] text-sm mb-0.5 truncate">{listing.address}</h3>
+        <p className="text-xs text-[var(--color-ink-muted)] mb-3">{listing.unit}</p>
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-[var(--color-ink)]">{listing.sf.toLocaleString()} SF</span>
+          <span className="text-sm text-[var(--color-ink-muted)]">${listing.pricePerSf}<span className="text-xs">/SF</span></span>
         </div>
         {features.slice(0, 2).length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {features.slice(0, 2).map((f) => (
-              <span key={f} className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{f}</span>
+              <span key={f} className="rounded-full bg-[var(--color-surface)] border border-[var(--color-edge)] px-2.5 py-0.5 text-[11px] text-[var(--color-ink-dim)]">
+                {f}
+              </span>
             ))}
           </div>
         )}

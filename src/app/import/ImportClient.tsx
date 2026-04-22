@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useRef, useState } from "react"
+import { useState } from "react"
 import type { CommitResult, PreviewResult } from "@/lib/import/types"
 import { commitAction, previewAction } from "./actions"
 import { PreviewPanel } from "./PreviewPanel"
@@ -16,7 +16,7 @@ export function ImportClient() {
   const [file, setFile] = useState<File | null>(null)
   const [useSample, setUseSample] = useState(false)
   const [dragOver, setDragOver] = useState(false)
-  const fileInputKey = useRef(0)
+  const [fileInputKey, setFileInputKey] = useState(0)
 
   async function runPreview(sample: boolean) {
     setStage("analyzing")
@@ -74,7 +74,7 @@ export function ImportClient() {
     setError(null)
     setFile(null)
     setUseSample(false)
-    fileInputKey.current += 1
+    setFileInputKey((k) => k + 1)
   }
 
   if (stage === "success" && commitResult) {
@@ -170,7 +170,7 @@ export function ImportClient() {
                 </div>
               </div>
               <input
-                key={fileInputKey.current}
+                key={fileInputKey}
                 type="file"
                 accept=".zip,application/zip"
                 className="hidden"

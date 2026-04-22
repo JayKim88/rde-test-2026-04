@@ -12,7 +12,7 @@
  * `intent: "unsupported"` with an explanation and a list of example queries.
  */
 import { z } from "zod"
-import { extractStructured, MODELS } from "./claude"
+import { callWithTool, MODELS } from "./claude"
 import { prisma } from "./prisma"
 
 export const INTENTS = [
@@ -46,29 +46,11 @@ export type NLResult = {
   meta?: { caption?: string }
 }
 
-const SYSTEM_PROMPT = `You translate a property manager's English question into a structured query intent.
-
-Return ONLY JSON matching this schema:
-{
-  "intent": one of [
-    "tenants_past_due",              // tenants with outstanding balance (charges - payments)
-    "vendors_by_spend",              // work-order vendors ranked by total cost
-    "leases_expiring",               // active leases ending within N months
-    "expense_summary_by_category",   // work-order spend grouped by category, last N months
-    "rent_roll_total",               // total active monthly rent
-    "unsupported"                    // question is outside the catalog
-  ],
-  "params": {
-    "minAmount": number | null,   // e.g. "$5000" -> 5000
-    "months":    number | null,   // e.g. "next 3 months" -> 3; "last 12 months" -> 12
-    "year":      number | null    // e.g. "this year" / "2025" -> 2025
-  },
-  "explanation": string   // one short sentence restating how you interpreted the question
-}
+const SYSTEM_PROMPT = `You translate a property manager's English question into a structured query intent. Call the classify_pm_query tool.
 
 Rules:
-- Pick the SINGLE closest intent. If nothing fits, use "unsupported" and explain briefly what kinds of questions you can answer.
-- Do NOT invent new intents. Do NOT output SQL. Do NOT wrap in prose.
+- Pick the SINGLE closest intent. If nothing fits, use "unsupported".
+- Do NOT output SQL. Do NOT invent new intents.
 - If a param is not mentioned, use null. Never fabricate thresholds.
 - "past due" / "late" / "behind" / "owes" → tenants_past_due
 - "vendor" / "contractor" / "paid for repairs" → vendors_by_spend
@@ -76,11 +58,37 @@ Rules:
 - "expense" / "spend" / "operating" / "cost" / "breakdown" → expense_summary_by_category
 - "total rent" / "monthly rent" / "rent roll" → rent_roll_total`
 
+const NL_TOOL_SCHEMA = {
+  type: "object",
+  properties: {
+    intent: {
+      type: "string",
+      enum: [...INTENTS],
+      description: "The closest matching intent from the catalog",
+    },
+    params: {
+      type: "object",
+      properties: {
+        minAmount: { type: ["number", "null"], description: "Dollar threshold, e.g. 5000 for '$5,000'" },
+        months: { type: ["number", "null"], description: "Month window, e.g. 3 for 'next 3 months'" },
+        year: { type: ["number", "null"], description: "Calendar year, e.g. 2025 for 'this year'" },
+      },
+      required: ["minAmount", "months", "year"],
+    },
+    explanation: { type: "string", description: "One sentence restating how you interpreted the question" },
+  },
+  required: ["intent", "params", "explanation"],
+} as const
+
 export async function parseNLQuery(query: string): Promise<NLIntent> {
-  const { data } = await extractStructured(SYSTEM_PROMPT, query, NLIntentSchema, {
-    maxTokens: 400,
-    model: MODELS.HAIKU,
-  })
+  const { data } = await callWithTool(
+    query,
+    "classify_pm_query",
+    "Classify a property manager's natural-language question into a typed query intent.",
+    NL_TOOL_SCHEMA,
+    NLIntentSchema,
+    { maxTokens: 400, model: MODELS.HAIKU, systemPrompt: SYSTEM_PROMPT }
+  )
   return data
 }
 

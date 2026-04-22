@@ -8,6 +8,7 @@ import { NLQueryBar } from "./NLQueryBar"
 
 export const metadata: Metadata = { title: "Dashboard" }
 export const dynamic = "force-dynamic"
+export const maxDuration = 30
 
 // AR aging bucket thresholds in days. Anything older than 90 is "90+".
 const BUCKETS = [30, 60, 90] as const

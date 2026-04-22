@@ -82,24 +82,28 @@ export async function parseSearchQuery(query: string): Promise<SearchResponse> {
 }
 
 export async function findListings(filter: SearchFilter) {
-  const where: Record<string, unknown> = {}
+  const AND: Record<string, unknown>[] = []
 
   if (filter.submarket) {
-    where.submarketNorm = filter.submarket.toLowerCase()
+    AND.push({ submarketNorm: filter.submarket.toLowerCase() })
   }
   if (filter.sfMin != null && filter.sfMax != null) {
-    where.sf = { gte: filter.sfMin, lte: filter.sfMax }
+    AND.push({ sf: { gte: filter.sfMin, lte: filter.sfMax } })
   } else if (filter.sfMin != null) {
-    where.sf = { gte: filter.sfMin }
+    AND.push({ sf: { gte: filter.sfMin } })
   } else if (filter.sfMax != null) {
-    where.sf = { lte: filter.sfMax }
+    AND.push({ sf: { lte: filter.sfMax } })
   }
   if (filter.subleaseOrDirect === "sublease" || filter.subleaseOrDirect === "direct") {
-    where.type = filter.subleaseOrDirect
+    AND.push({ type: filter.subleaseOrDirect })
+  }
+  // features is stored as JSON string — substring match per feature keyword
+  for (const f of filter.features) {
+    AND.push({ features: { contains: f } })
   }
 
   return prisma.listing.findMany({
-    where,
+    where: AND.length > 0 ? { AND } : {},
     orderBy: [{ submarketNorm: "asc" }, { sf: "asc" }],
     take: 60,
   })
