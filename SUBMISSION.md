@@ -12,7 +12,7 @@ Think of what we built as two products sharing one codebase.
 
 Both products run on Vercel (instant global deployment, no servers to manage). Data lives in a database that handles Ross's current portfolio today and can grow to thousands of tenants by upgrading one config line — no application code changes. The AI brains are rented from Anthropic — pay per use, no GPU infrastructure.
 
-To reach 10,000 users: swap SQLite for Postgres (a one-day migration), add a CDN for images, upgrade the database tier. The application layer needs no rewrites.
+To reach 10,000 users: add a CDN for images, upgrade the database tier (already on Postgres — scale vertically or add read replicas), and enable edge caching for the search pages. The application layer needs no rewrites.
 
 ---
 
@@ -215,7 +215,7 @@ Both BTS search (`parse_office_query`) and PM NL query (`classify_pm_query`) use
 
 **Rejected:** `extractStructured()` — parses Claude's text output with a regex strip and `JSON.parse`. This works when Claude cooperates, but Claude occasionally wraps output in prose ("Here is the JSON you requested: ..."), causing parse failures. At 100K searches/month even a 0.5% failure rate means 500 degraded responses. Tool use eliminates the failure mode entirely because the output contract is enforced at the API level.
 
-**Cost consideration:** Tool use echoes the input schema in the response payload (~300–600 output tokens per call). At Haiku prices ($1.25/M output tokens) and 100K BTS searches/month, this adds ~$50–75/month versus `extractStructured`. We accept this cost because: (1) Haiku is already cheap enough that the difference is immaterial at bootstrap scale, (2) parse failures have a hidden cost — retries, user-facing error states, degraded search results — that exceeds the token savings, and (3) consistent patterns across the codebase reduce maintenance surface.
+**Cost consideration:** Tool use echoes the input schema in the response payload (~300–600 output tokens per call). At Haiku prices ($4.00/M output tokens) and 100K BTS searches/month, this adds ~$50–75/month versus `extractStructured`. We accept this cost because: (1) Haiku is already cheap enough that the difference is immaterial at bootstrap scale, (2) parse failures have a hidden cost — retries, user-facing error states, degraded search results — that exceeds the token savings, and (3) consistent patterns across the codebase reduce maintenance surface.
 
 **Why both use the same pattern:** Uniformity. `callWithTool` is the correct abstraction for any Claude call where you need guaranteed structured output. `extractStructured` is kept in `src/lib/claude.ts` as a fallback for future use cases where schema size makes token cost prohibitive (e.g., a long multi-field extraction schema).
 
