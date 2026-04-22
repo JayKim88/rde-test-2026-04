@@ -1,83 +1,89 @@
-# RDE Advisors — Engineering Test Starter
+# Beyond the Space + PM Platform — Jay Kim
 
-Fork or clone this repository to begin the paid engineering test. You have **3.5 hours wall-clock** inside the agreed window — git commit timestamps will be audited.
+Full implementation of both products from the RDE Advisors engineering test:
 
-**The full test spec is in [`TEST_SPEC.md`](./TEST_SPEC.md).** Read it before the clock starts.
+- **Beyond the Space (BTS)** — AI-powered NYC office search at `/`, `/search`, `/listings/[slug]`
+- **PM Platform** — one-button Buildium import at `/import`, dashboard at `/dashboard`, tenant/lease views
 
----
-
-## What's in here
-
-| Path | Description |
-|------|-------------|
-| `TEST_SPEC.md` | **The actual test requirements (Parts 1–5, W1–W5, deliverables)** |
-| `src/` | Next.js App Router + TypeScript + Tailwind scaffold |
-| `prisma/schema.prisma` | Minimal Prisma schema (SQLite) — extend it |
-| `data/listings.json` | 25 synthetic NYC office listings |
-| `public/images/listings/` | Placeholder SVG photos (replace with real media) |
-| `public/floorplans/` | 25 schematic SVG floor plans |
-| `data/buildium_export.zip` | Synthetic Buildium property-management export (6 CSVs) |
+**Stack:** Next.js 16 · React 19 · Prisma 7 · Tailwind 4 · Neon Postgres · Anthropic Claude (Haiku 4.5)
 
 ---
 
 ## Running locally
 
-**Step 1 — create a `.env` file in the project root with:**
+### Prerequisites
+
+- Node.js ≥ 20
+- A [Neon](https://neon.tech) Postgres database (free tier, takes ~3 minutes to set up)
+- An [Anthropic API key](https://console.anthropic.com/) for AI search and NL query features
+
+### Step 1 — Environment variables
+
+Create a `.env` file in the project root:
 
 ```
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://user:pass@host/db?sslmode=require"
+ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
-> **Heads-up:** this `file:./dev.db` URL is only for your initial local setup. Later in the test, the "Deploying to Vercel" section will have you repoint this to Neon Postgres — see Deploy Step 3.
+- `DATABASE_URL`: your Neon **direct (unpooled)** connection string. Do NOT use the pooled/pgbouncer URL — Prisma migrations require direct connections.
+- `ANTHROPIC_API_KEY`: used by BTS search (`/search`) and the dashboard NL query bar. Without this key the app boots fine, but AI features return an error.
 
-This is required before any Prisma migrate/push command. Prisma v7 reads `DATABASE_URL` from `prisma.config.ts` → `process.env`, so without the `.env` file, migrations will fail.
+> **Prisma 7 note:** `DATABASE_URL` is read from `prisma.config.ts` → `process.env`, not from `schema.prisma`. Do not add `url = env("DATABASE_URL")` to `schema.prisma`.
 
-**Step 2 — install, generate, run:**
+### Step 2 — Install and migrate
 
 ```bash
 npm install
 npx prisma migrate dev --name init
+```
+
+### Step 3 — Seed listings
+
+```bash
+npx tsx --env-file=.env scripts/seed-listings.ts
+```
+
+This seeds the 25 NYC office listings from `data/listings.json` into the database. It is idempotent — safe to run multiple times.
+
+### Step 4 — Run
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The homepage placeholder tells you where to start.
+Open [http://localhost:3000](http://localhost:3000).
 
-> **Stack note:** this starter uses **Next.js 16, React 19, Prisma 7, and Tailwind 4**. Some APIs differ from earlier major versions — notably:
->
-> - **Prisma's generated client** now lives at `src/generated/prisma` (not `@prisma/client`). Import from `src/generated/prisma` — the `@prisma/client` package is NOT installed; attempting to import from it will fail at typecheck.
-> - **`DATABASE_URL` is read from `prisma.config.ts`, not from `schema.prisma`.** Do NOT add `url = env("DATABASE_URL")` to `schema.prisma` — Prisma 7 will error with a duplicate-datasource-url message. The `url` lives exclusively in `prisma.config.ts`, which reads `process.env.DATABASE_URL` from your `.env` file.
->
-> If something behaves differently than you expect, consult the [Next.js 16 docs](https://nextjs.org/docs) or the [Prisma v7 docs](https://www.prisma.io/docs).
-
-> **Note:** A `dev.db` SQLite file will be created locally when you run migrations. It is gitignored — do not commit it.
+- **BTS search**: type a query on the homepage (e.g., "25 people in Midtown") and press Enter
+- **PM import**: go to `/import`, click "Try with sample data", preview, then commit
+- **Dashboard**: go to `/dashboard` after importing to see rent roll, AR aging, and expense chart
 
 ---
 
 ## Deploying to Vercel
 
-**Important:** The default SQLite setup (`file:./dev.db`) does NOT work on Vercel serverless — Vercel's runtime filesystem is read-only except for `/tmp`, which won't persist across function invocations. For the live deploy you need a hosted Postgres database.
+The schema is already on Postgres (committed in `prisma/schema.prisma`). No SQLite → Postgres migration needed.
 
-Recommended (free tier, ~3 minutes to set up): [Neon](https://neon.tech). Sign up, create a project, copy the connection string.
+**Step 1.** Push this repo to GitHub.
 
-To switch from SQLite to Postgres:
+**Step 2.** Import the repo in Vercel. During setup, add these environment variables (Settings → Environment Variables, all three scopes: Production, Preview, Development):
 
-**Step 1.** In `prisma/schema.prisma`, change `provider = "sqlite"` to `provider = "postgresql"`.
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | Your Neon **direct (unpooled)** connection string |
+| `ANTHROPIC_API_KEY` | Your Anthropic API key |
 
-**Step 2.** Delete the existing migrations folder — the files in `prisma/migrations/` were generated against SQLite in "Running locally" Step 2 (with `AUTOINCREMENT` / `DATETIME` syntax) and will fail on Postgres:
-- macOS/Linux: `rm -rf prisma/migrations/`
-- Windows: `rmdir /s /q prisma\migrations`
+**Step 3.** `prisma migrate deploy` runs automatically during build (via the `build` script in `package.json`) — no manual migration step needed.
 
-**Step 3.** Point your local `.env` `DATABASE_URL` at your Neon **direct** (unpooled) connection string — NOT the pooled/pgbouncer one, or migrations will fail. Format: `postgresql://user:pass@host/db?sslmode=require`.
+**Step 4.** After first deploy, seed listings by running locally with `DATABASE_URL` pointed at Neon:
 
-From this point on, your local `.env` must stay on Neon for the rest of the test. The `file:./dev.db` URL shown in "Running locally" Step 1 was for INITIAL local setup only — if you swap back to SQLite after this point, the next `prisma migrate dev` will error with a provider mismatch and corrupt your migrations folder. From here on, rely on this section (not "Running locally") for env configuration.
+```bash
+npx tsx --env-file=.env scripts/seed-listings.ts
+```
 
-**Step 4.** In the Vercel dashboard → Settings → Environment Variables, add `DATABASE_URL` with your Neon **direct (unpooled)** connection string — the same one you pasted in `.env` in Step 3. Do NOT use the pooled (pgbouncer) URL here; the build-time `prisma migrate deploy` can flake against the pooler. Check all three scopes (Production, Preview, and Development) so preview deploys also work.
+**Step 5.** Disable Deployment Protection (Settings → Deployment Protection → None) so the URL is publicly accessible.
 
-**Step 5.** Run `npx prisma migrate dev --name init` locally to regenerate the migrations folder — this creates fresh Postgres-flavored migration files to replace the SQLite-flavored ones you deleted in Step 2. Commit the new `prisma/migrations/` files.
-
-**Step 6.** On Vercel, `prisma migrate deploy` runs automatically during build (via the updated `build` script in `package.json`) to apply them.
-
-**Step 7.** Make sure Vercel's Deployment Protection is OFF for this project (Settings → Deployment Protection → None) so the deploy URL is publicly accessible — your submission requires a public URL, not one behind SSO or a password.
+> **Stack note:** This implementation uses **Next.js 16, React 19, Prisma 7, and Tailwind 4**. Prisma's generated client lives at `src/generated/prisma` (not `@prisma/client`).
 
 ---
 
