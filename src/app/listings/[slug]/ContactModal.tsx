@@ -10,7 +10,7 @@ export function ContactModal({ address, unit }: { address: string; unit: string 
     return (
       <button
         onClick={() => setOpen(true)}
-        className="w-full rounded-xl bg-gray-900 py-2.5 text-white font-medium hover:bg-gray-700 mb-2"
+        className="w-full rounded-xl bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-white hover:bg-[var(--color-accent-bold)] transition-colors mb-3"
       >
         Contact broker
       </button>
@@ -19,76 +19,69 @@ export function ContactModal({ address, unit }: { address: string; unit: string 
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-        onClick={() => setOpen(false)}
-      />
-
-      {/* Modal */}
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <div className="w-full max-w-md rounded-2xl bg-[var(--color-surface-raised)] border border-[var(--color-edge)] p-6 shadow-xl">
           {sent ? (
             <div className="text-center py-6">
-              <div className="text-3xl mb-3">✓</div>
-              <p className="font-semibold text-gray-900 mb-1">Request sent</p>
-              <p className="text-sm text-gray-500">A broker will reach out within one business day.</p>
+              <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-2xl">✓</div>
+              <p className="font-semibold text-[var(--color-ink)] mb-1">Request sent</p>
+              <p className="text-sm text-[var(--color-ink-muted)]">A broker will reach out within one business day.</p>
               <button
                 onClick={() => { setSent(false); setOpen(false) }}
-                className="mt-6 w-full rounded-xl border border-gray-300 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="mt-6 w-full rounded-xl border border-[var(--color-edge)] py-2.5 text-sm font-medium text-[var(--color-ink-dim)] hover:bg-[var(--color-surface-overlay)] transition-colors"
               >
                 Close
               </button>
             </div>
           ) : (
             <>
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start justify-between mb-5">
                 <div>
-                  <h3 className="font-semibold text-gray-900">Contact broker</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">{address} · {unit}</p>
+                  <h3 className="font-semibold text-[var(--color-ink)]">Contact broker</h3>
+                  <p className="text-sm text-[var(--color-ink-muted)] mt-0.5">{address} · {unit}</p>
                 </div>
                 <button
                   onClick={() => setOpen(false)}
-                  className="text-gray-400 hover:text-gray-700 text-xl leading-none"
+                  className="p-1.5 rounded-lg text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-overlay)] transition-colors"
                   aria-label="Close"
                 >
-                  ×
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
 
-              <form
-                onSubmit={(e) => { e.preventDefault(); setSent(true) }}
-                className="space-y-3"
-              >
+              <form onSubmit={(e) => { e.preventDefault(); setSent(true) }} className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Your name</label>
+                  <label className="block text-xs font-medium text-[var(--color-ink-dim)] mb-1.5">Your name</label>
                   <input
                     type="text"
                     required
                     placeholder="Jane Smith"
-                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                    className="w-full rounded-xl border border-[var(--color-edge)] bg-[var(--color-surface)] px-3 py-2.5 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-muted)] transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                  <label className="block text-xs font-medium text-[var(--color-ink-dim)] mb-1.5">Email</label>
                   <input
                     type="email"
                     required
                     placeholder="you@company.com"
-                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                    className="w-full rounded-xl border border-[var(--color-edge)] bg-[var(--color-surface)] px-3 py-2.5 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-muted)] transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Message (optional)</label>
+                  <label className="block text-xs font-medium text-[var(--color-ink-dim)] mb-1.5">Message <span className="text-[var(--color-ink-faint)]">(optional)</span></label>
                   <textarea
                     rows={3}
                     placeholder="We're a 25-person team looking to move in Q3…"
-                    className="w-full resize-none rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                    className="w-full resize-none rounded-xl border border-[var(--color-edge)] bg-[var(--color-surface)] px-3 py-2.5 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-muted)] transition-all"
                   />
                 </div>
                 <button
                   type="submit"
-                  className="w-full rounded-xl bg-gray-900 py-2.5 text-white text-sm font-medium hover:bg-gray-700"
+                  className="w-full rounded-xl bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-white hover:bg-[var(--color-accent-bold)] transition-colors"
                 >
                   Send request
                 </button>

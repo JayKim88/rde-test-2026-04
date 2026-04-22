@@ -49,14 +49,14 @@ function EntityRow({ label, s }: { label: string; s: EntityStats }) {
   const pct = s.parsed === 0 ? 100 : Math.round((s.kept / s.parsed) * 100)
   return (
     <tr className="border-b border-gray-100 last:border-0">
-      <td className="py-2.5 pr-4 font-medium text-gray-900 text-sm">{label}</td>
+      <td className="pl-5 py-2.5 pr-4 font-medium text-gray-900 text-sm">{label}</td>
       <td className="py-2.5 pr-4 text-right tabular-nums text-sm text-gray-500">{s.parsed}</td>
       <td className="py-2.5 pr-4 text-right tabular-nums text-sm">
         <span className="font-medium text-gray-900">{s.kept}</span>
         <span className="text-gray-400 text-xs ml-1">({pct}%)</span>
       </td>
       <td className="py-2.5 pr-4 text-right tabular-nums text-sm text-gray-500">{s.duplicates || "—"}</td>
-      <td className="py-2.5 text-right tabular-nums text-sm">
+      <td className="pr-5 py-2.5 text-right tabular-nums text-sm">
         {s.issues > 0
           ? <span className="text-amber-700 font-medium">{s.issues}</span>
           : <span className="text-gray-300">—</span>}

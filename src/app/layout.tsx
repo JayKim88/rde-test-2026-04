@@ -1,11 +1,14 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Plus_Jakarta_Sans } from "next/font/google"
 import Link from "next/link"
 import { NavLinks } from "./NavLinks"
 import "./globals.css"
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] })
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+})
 
 export const metadata: Metadata = {
   title: {
@@ -25,18 +28,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-white text-gray-900">
-        <header className="border-b border-gray-200">
-          <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
-            <Link href="/" className="font-semibold tracking-tight">
+    <html lang="en" className={`${jakarta.variable} h-full`}>
+      <body className="min-h-full flex flex-col bg-[var(--color-surface)] text-[var(--color-ink)]">
+        <header className="bg-[var(--color-surface-raised)] border-b border-[var(--color-edge)] sticky top-0 z-30">
+          <div className="mx-auto max-w-5xl px-6 py-3.5 flex items-center justify-between">
+            <Link href="/" className="font-bold text-[var(--color-ink)] tracking-tight text-[15px]">
               Beyond the Space
             </Link>
             <NavLinks />
           </div>
         </header>
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-gray-200 py-6 text-center text-sm text-gray-500">
+        <footer className="border-t border-[var(--color-edge)] py-5 text-center text-xs text-[var(--color-ink-muted)]">
           © RDE Advisors · Prototype
         </footer>
       </body>

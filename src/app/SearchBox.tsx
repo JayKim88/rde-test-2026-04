@@ -3,7 +3,15 @@
 import { useRouter } from "next/navigation"
 import { useRef, useState } from "react"
 
-export function SearchBox({ chips, defaultValue, autoFocus }: { chips: string[]; defaultValue?: string; autoFocus?: boolean }) {
+export function SearchBox({
+  chips,
+  defaultValue,
+  autoFocus,
+}: {
+  chips: string[]
+  defaultValue?: string
+  autoFocus?: boolean
+}) {
   const router = useRouter()
   const [value, setValue] = useState(defaultValue ?? "")
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -15,13 +23,13 @@ export function SearchBox({ chips, defaultValue, autoFocus }: { chips: string[];
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <form
         onSubmit={(e) => {
           e.preventDefault()
           submit(value)
         }}
-        className="group relative"
+        className="relative"
       >
         <textarea
           ref={inputRef}
@@ -36,12 +44,12 @@ export function SearchBox({ chips, defaultValue, autoFocus }: { chips: string[];
           rows={3}
           placeholder="Describe your space…"
           autoFocus={autoFocus}
-          className="w-full resize-none rounded-2xl border border-gray-300 bg-white px-5 py-4 text-lg shadow-sm transition focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+          className="w-full resize-none rounded-2xl border border-[var(--color-edge)] bg-[var(--color-surface-raised)] px-5 py-4 pr-24 text-[15px] text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] shadow-sm transition-all focus:border-[var(--color-accent)] focus:outline-none focus:ring-3 focus:ring-[var(--color-accent-muted)]"
         />
         <button
           type="submit"
-          className="absolute bottom-3 right-3 rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40"
           disabled={!value.trim()}
+          className="absolute bottom-3 right-3 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-accent-bold)] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Search
         </button>
@@ -56,7 +64,7 @@ export function SearchBox({ chips, defaultValue, autoFocus }: { chips: string[];
               setValue(chip)
               inputRef.current?.focus()
             }}
-            className="rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 transition hover:border-gray-900 hover:text-gray-900"
+            className="rounded-full border border-[var(--color-edge)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-sm text-[var(--color-ink-dim)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-muted)]"
           >
             {chip}
           </button>

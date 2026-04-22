@@ -208,14 +208,16 @@ Hand-rolled SVG stacked bar chart (~170 lines) as a `"use client"` component wit
 
 ---
 
-### 7. Strict JSON contract in system prompt + Zod validation (BTS search + NL query)
-**File:** `src/lib/claude.ts` — `extractStructured()`
+### 7. Two extraction patterns: `extractStructured` for BTS search, `callWithTool` for NL query
+**Files:** `src/lib/claude.ts`, `src/lib/search.ts`, `src/lib/nl-query.ts`
 
-System prompt ends with "Return ONLY JSON matching this schema: …" and no other instruction. Response is stripped of markdown fences with a single regex, then `JSON.parse()` + `z.safeParse()` validates the shape.
+BTS search uses `extractStructured()` — tight system prompt ending in "Return ONLY JSON matching this schema," response regex-stripped and Zod-validated. NL query uses `callWithTool()` — formal Claude tool_use with `tool_choice: { type: "any" }`, forcing the model to call `classify_pm_query` with a typed JSON Schema input; output comes from `toolUse.input`, no text parsing required.
 
-**Rejected:** Claude tool_use / function calling. Tool schemas add ~300–600 output tokens per call (the schema is echoed back as part of the tool-call response), which at 100K calls/month adds meaningful cost and latency.
+**Rejected for BTS:** tool_use — adds ~300–600 output tokens per call (schema echoed in response), material cost at volume. At 100K searches/month the difference is ~$90/month at Haiku prices.
 
-**Why:** A tight system prompt with a concrete JSON schema example produces cleaner output from Haiku than an equivalent tool definition, at lower token cost. The tradeoff is that the contract is enforced at application level (Zod), not at API level. If Claude returns malformed JSON, `extractStructured()` throws and the caller degrades gracefully — on BTS search this shows all listings, on NL query this shows an "unsupported" response. Both failure paths are tested and user-visible.
+**Rejected for NL query:** `extractStructured` — NL intent classification is more ambiguous than slot-filling a search filter. The six-intent enum plus nullable params are exactly the shape tool_use was designed for; the JSON-in-text approach added regex fragility for no cost saving (NL query is low-volume — ~5% of searches).
+
+**Why the split:** Different use cases, different tradeoffs. BTS is high-volume, well-structured, cost-sensitive. NL query is low-volume, higher ambiguity, benefits from API-level output enforcement where a malformed intent enum would silently degrade rather than throw.
 
 ---
 

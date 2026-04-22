@@ -1,43 +1,63 @@
 @import "tailwindcss";
 
+/* ── Design tokens (light-only, no dark mode override) ─────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces */
+  --color-surface:         #f4f4f5;   /* zinc-100 — page bg */
+  --color-surface-raised:  #ffffff;   /* white — cards, panels */
+  --color-surface-overlay: #e4e4e7;   /* zinc-200 — hover states */
+
+  /* Borders */
+  --color-edge:            #e4e4e7;   /* zinc-200 */
+  --color-edge-strong:     #d4d4d8;   /* zinc-300 */
+
+  /* Text */
+  --color-ink:             #18181b;   /* zinc-900 */
+  --color-ink-dim:         #52525b;   /* zinc-600 */
+  --color-ink-muted:       #71717a;   /* zinc-500 */
+  --color-ink-faint:       #a1a1aa;   /* zinc-400 */
+
+  /* Accent */
+  --color-accent:          #2563eb;   /* blue-600 */
+  --color-accent-bold:     #1d4ed8;   /* blue-700 */
+  --color-accent-muted:    #dbeafe;   /* blue-100 */
+
+  /* Status */
+  --color-success:         #10b981;   /* emerald-500 */
+  --color-warning:         #f59e0b;   /* amber-500 */
+  --color-danger:          #ef4444;   /* red-500 */
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-jakarta);
 
-  /* Neutral palette */
-  --color-gray-50: #f9fafb;
-  --color-gray-100: #f3f4f6;
-  --color-gray-200: #e5e7eb;
-  --color-gray-300: #d1d5db;
-  --color-gray-400: #9ca3af;
-  --color-gray-500: #6b7280;
-  --color-gray-600: #4b5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1f2937;
-  --color-gray-900: #111827;
-
-  /* Brand blue */
-  --color-brand: #0F3D91;
-  --color-brand-light: #1a52c4;
-  --color-brand-dark: #0a2d6e;
+  /* Expose tokens to Tailwind */
+  --color-surface:         var(--color-surface);
+  --color-surface-raised:  var(--color-surface-raised);
+  --color-surface-overlay: var(--color-surface-overlay);
+  --color-edge:            var(--color-edge);
+  --color-edge-strong:     var(--color-edge-strong);
+  --color-ink:             var(--color-ink);
+  --color-ink-dim:         var(--color-ink-dim);
+  --color-ink-muted:       var(--color-ink-muted);
+  --color-ink-faint:       var(--color-ink-faint);
+  --color-accent:          var(--color-accent);
+  --color-accent-bold:     var(--color-accent-bold);
+  --color-accent-muted:    var(--color-accent-muted);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* Scrollbar — minimal */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-edge-strong); border-radius: 999px; }

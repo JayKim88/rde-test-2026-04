@@ -19,7 +19,6 @@ export const metadata: Metadata = {
 }
 
 export default function Home() {
-  // SEO JSON-LD: WebSite + SearchAction. Enables Google to render a sitelinks searchbox.
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -41,26 +40,27 @@ export default function Home() {
         {JSON.stringify(jsonLd)}
       </Script>
 
-      <section className="mx-auto max-w-3xl px-6 py-20 md:py-28">
-        <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-gray-900 mb-4">
-          Describe the office you need.
+      <section className="mx-auto max-w-5xl px-6 py-20 md:py-32">
+        <div className="max-w-2xl">
+        {/* Eyebrow */}
+        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--color-edge)] bg-[var(--color-surface-raised)] px-3 py-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
+          <span className="text-xs font-medium text-[var(--color-ink-dim)]">AI-powered · 25+ NYC listings</span>
+        </div>
+
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-[var(--color-ink)] mb-4 leading-[1.1]">
+          Describe the office<br className="hidden md:block" /> you need.
         </h1>
-        <p className="text-lg text-gray-600 mb-10">
-          Square footage, submarket, sublease, vibe — tell us in plain English. We&rsquo;ll
-          find matching NYC offices from every major broker, with AI that actually
-          understands what you mean.
+        <p className="text-[var(--color-ink-muted)] text-lg mb-10 leading-relaxed">
+          Square footage, submarket, sublease, vibe — plain English. We&rsquo;ll find matching NYC offices across every major broker.
         </p>
 
         <SearchBox chips={CHIPS} autoFocus />
 
-        <p className="mt-6 text-sm text-gray-500">
-          Try: {CHIPS.slice(0, 2).map((c, i) => (
-            <span key={c}>
-              <span className="italic">&ldquo;{c}&rdquo;</span>
-              {i === 0 ? ", " : ""}
-            </span>
-          ))}
+        <p className="mt-8 text-xs text-[var(--color-ink-faint)]">
+          Press <kbd className="rounded border border-[var(--color-edge)] bg-[var(--color-surface-raised)] px-1.5 py-0.5 font-mono text-[11px]">Enter</kbd> to search · <kbd className="rounded border border-[var(--color-edge)] bg-[var(--color-surface-raised)] px-1.5 py-0.5 font-mono text-[11px]">Shift+Enter</kbd> for new line
         </p>
+        </div>
       </section>
     </>
   )
