@@ -10,15 +10,15 @@ Think of what we built as two products sharing one codebase.
 
 **The Property Management platform** has two jobs. First, it makes switching painless: a property manager exports their data from Buildium, drops the zip file on our page, sees exactly what will be imported (including every problem row, flagged clearly), then clicks one button to commit. Second, it gives them a daily dashboard: who owes what, which leases expire soon, how expenses have trended, and a plain-English question bar where they can ask things like "which tenants are more than $5,000 behind."
 
-Both products run on Vercel (instant global deployment, no servers to manage). Data lives in a database that can scale from 10 tenants to 100,000 without any code changes. The AI brains are rented from Anthropic — pay per use, no GPU infrastructure.
+Both products run on Vercel (instant global deployment, no servers to manage). Data lives in a database that handles Ross's current portfolio today and can grow to thousands of tenants by upgrading one config line — no application code changes. The AI brains are rented from Anthropic — pay per use, no GPU infrastructure.
 
-To reach 10,000 users: add a CDN for images, upgrade the database tier. No rewrites required.
+To reach 10,000 users: swap SQLite for Postgres (a one-day migration), add a CDN for images, upgrade the database tier. The application layer needs no rewrites.
 
 ---
 
 ## W1 — Scraping + Watermark/Branding Removal at Scale
 
-**Scraping pipeline.** At scale, the hard problems are not fetching HTML — they're *staying undetected* and *staying current*. For anti-bot: residential proxy rotation (Oxylabs/Brightdata), random UA + viewport fingerprinting, exponential backoff on 429s, and Playwright for JavaScript-heavy sites (VTS renders listings client-side). Change detection runs via content hash comparison on a per-listing basis — avoid re-processing 10,000 listings when 40 changed. Queue: Bull (Redis-backed), one worker per domain to respect rate limits, separate slow lane for Cloudflare-protected sites. Cross-portal dedup: normalize address + unit → canonical hash; listings appearing on 3 portals collapse to one record. Quality gate: reject any listing missing price, SF, or photos before DB insert.
+**Scraping pipeline.** At scale, the hard problems are not fetching HTML — they're *staying undetected* and *staying current*. For anti-bot: residential proxy rotation (Oxylabs/Brightdata), random UA + viewport fingerprinting, exponential backoff on 429s, and Playwright for JavaScript-heavy sites (VTS renders listings client-side). Change detection runs via content hash comparison on a per-listing basis — avoid re-processing 10,000 listings when 40 changed. Queue: Bull (Redis-backed), one worker per domain to respect rate limits, separate slow lane for Cloudflare-protected sites (playwright-stealth for TLS/JA3 fingerprint spoofing + 2Captcha/CapSolver for challenge pages — Cloudflare Turnstile requires a different approach than hCaptcha, so both need to be in the solver config). Cross-portal dedup: normalize address + unit → canonical hash; listings appearing on 3 portals collapse to one record. Quality gate: reject any listing missing price, SF, or photos before DB insert.
 
 **Watermark removal pipeline.** Two-stage: (1) *Known logos* — template matching with ORB features against a maintained logo library (broker firms reuse the same ~200 templates). (2) *Arbitrary watermarks* — SAM2 for segmentation, LaMa for inpainting. OCR (Tesseract or Google Vision) to catch text overlays. Quality gate: SSIM comparison between input and output; if similarity drops below threshold, route to human review queue.
 
@@ -30,7 +30,7 @@ To reach 10,000 users: add a CDN for images, upgrade the database tier. No rewri
 
 ## W2 — Phase-2 QuickBooks Replacement
 
-**Day-1 schema requirements.** The schema (`prisma/schema.prisma`) already makes three bets for phase 2: (1) `Charge` and `Payment` rows carry `type` and `description` fields sized to receive an `accountCodeId` FK later — adding a GL account table is additive; (2) `Lease` uses append-only history rows (renewals create new records, never mutate old ones), which is mandatory for point-in-time financial statements; (3) `ImportRun` gives a clean audit trail from day one.
+**Day-1 schema requirements.** The schema (`prisma/schema.prisma`) already makes three bets for phase 2: (1) `Charge` and `Payment` models (`schema.prisma:Charge`, `schema.prisma:Payment`) carry `type` and `description` fields — adding a nullable `accountCodeId` FK when we introduce a chart-of-accounts model is a single migration line, additive to all existing rows; (2) `Lease` uses append-only history rows — renewals create a new `Lease` with `status: "renewed"` on the old one, never mutating `startDate`/`endDate`, which is mandatory for point-in-time financial statements (`schema.prisma:Lease`); (3) `ImportRun` (`schema.prisma:ImportRun`) gives a clean per-import audit trail with source, status, and stats JSON from day one.
 
 **Minimum feature bar to cancel QuickBooks.** A PM won't cancel QB until we cover: *trust accounting* (security deposit segregation by state statute — NY RPL §7-103 requires separate escrow), *1099-MISC e-filing* (IRS FIRE system integration, due January), *bank reconciliation* (connect plaid/yodlee, match transactions to charges), *month-end close* (lock period, prevent backdating), and a *CPA-friendly audit trail* (every mutation timestamped, user-attributed, reversible with journal entry). Cash-basis vs. accrual toggle is required by most CPAs.
 
@@ -78,7 +78,7 @@ To reach 10,000 users: add a CDN for images, upgrade the database tier. No rewri
 | NL dashboard queries | Haiku 4.5 | 5 fixed intents, low ambiguity |
 | Future: multi-step synthesis | Sonnet 4.6 | Reserve for floor plan critique, complex report generation |
 
-Prompt caching: the BTS search system prompt (~600 tokens) and the NL intent catalog (~800 tokens) are static — cache both. At Sonnet prices, cached input is $0.30/M vs $3.00/M uncached. At 100K searches with 5-minute TTL and typical session clustering, expect 80–85% cache hit rate on the system prompt. This alone cuts LLM input cost by ~80%.
+Prompt caching: the BTS search system prompt (~600 tokens) and the NL intent catalog (~800 tokens) are static — cache both. At Haiku prices, cached input is $0.08/M vs $0.80/M uncached — 90% cheaper. BTS search is the primary volume driver; the system prompt is sent on every request, so caching it is the single highest-leverage cost lever. At 100K searches/month with a 5-minute TTL, realistic cache hit rate is 60–70% (searches cluster in business hours but are otherwise stateless). This cuts LLM input cost by ~60% in practice.
 
 ### Three Claude API cost traps I've hit
 
@@ -92,17 +92,17 @@ Prompt caching: the BTS search system prompt (~600 tokens) and the NL intent cat
 
 | Line item | 10K searches/mo | 50K searches/mo | 100K searches/mo |
 |---|---|---|---|
-| **LLM — BTS search (Sonnet)** | $47 | $187¹ | $330¹ |
-| **LLM — NL queries (Haiku, ~5%)** | $1 | $4 | $8 |
+| **LLM — BTS search (Haiku 4.5)** | $14¹ | $52¹ | $95¹ |
+| **LLM — NL queries (Haiku, ~5%)** | $1 | $3 | $5 |
 | **Database (Supabase)** | $0 (free) | $25 (Pro) | $50 (Pro + compute) |
 | **Vercel** | $0 (Hobby) | $20 (Pro) | $20 (Pro) |
 | **Image optimization (Vercel)** | $0 | $8 | $18 |
 | **CDN / bandwidth** | $0 | $0 | $5 |
 | **Misc (Sentry, analytics)** | $0 | $5 | $10 |
-| **Total** | **~$48/mo** | **~$249/mo** | **~$441/mo** |
-| Cost per search | $0.005 | $0.005 | $0.004 |
+| **Total** | **~$15/mo** | **~$113/mo** | **~$203/mo** |
+| Cost per search | $0.0015 | $0.0023 | $0.002 |
 
-¹ With 80% prompt cache hit rate (Sonnet cached input = $0.30/M vs $3.00/M).
+¹ Haiku 4.5: $0.80/M input, $4.00/M output, $0.08/M cached input. Per search: ~800 input tokens + ~400 output tokens. At 65% cache hit rate on the 600-token system prompt, blended input cost ≈ $0.35/M effective. Output dominates at scale.
 
 **Supabase tier ceiling:** Free tier hits its 500MB limit quickly once PM data grows (1M charges = ~500MB). Migrate to Pro at ~5K tenants. **Vercel bandwidth math:** 50K searches × ~800KB/page = 40GB; Pro includes 1TB, safe to 1M searches. **Self-host vs managed:** stay managed through year one; self-hosting saves ~$100/month but costs 40+ hours of infrastructure work. Not worth it below $2K/month in managed costs. **RAG chunk size:** for BTS (25 listings), embeddings are unnecessary — full-text DB search handles it. At 5K listings, chunk to 512 tokens with 20% overlap; larger chunks hurt recall precision on SF/submarket queries.
 
