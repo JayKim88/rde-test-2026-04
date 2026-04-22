@@ -4,49 +4,49 @@
 
 ## Architecture Overview (for Ross)
 
-Think of what we built as two products sharing one codebase.
+Two products, one codebase.
 
-**Beyond the Space** is the office search engine. When someone types "25 people in Midtown," an AI reads the plain-English description and translates it into a real search — filtering by neighborhood, size, and lease type — then shows matching listings with photos you can scrub through like swiping on Airbnb. Every page is pre-rendered so Google can read and rank it.
+**Beyond the Space** is the office search engine. A tenant types "25 people in Midtown" and the AI translates that into a real search — filtering by neighborhood, size, and lease type — then shows matching listings with photos you can swipe through like Airbnb. Every page loads with real content so Google can find and rank it without any extra work on our end.
 
-**The Property Management platform** has two jobs. First, it makes switching painless: a property manager exports their data from Buildium, drops the zip file on our page, sees exactly what will be imported (including every problem row, flagged clearly), then clicks one button to commit. Second, it gives them a daily dashboard: who owes what, which leases expire soon, how expenses have trended, and a plain-English question bar where they can ask things like "which tenants are more than $5,000 behind."
+**The Property Management platform** does two things. First, it removes the switching cost: export data from Buildium, drop the zip on our page, see a clear preview of what will be imported (every problem row flagged), then click one button to commit. Second, it runs the daily business: who owes what, which leases expire soon, how expenses trend, and a plain-English question bar — "which tenants are more than $5,000 behind?"
 
-Both products run on Vercel (instant global deployment, no servers to manage). Data lives in a database that handles Ross's current portfolio today and can grow to thousands of tenants by upgrading one config line — no application code changes. The AI brains are rented from Anthropic — pay per use, no GPU infrastructure.
+Both run on Vercel — no servers to manage. Data lives in a hosted Postgres database that handles your current portfolio and scales to thousands of tenants by upgrading one configuration setting. The AI is rented from Anthropic at pay-per-use rates — no hardware, no maintenance.
 
-To reach 10,000 users: add a CDN for images, upgrade the database tier (already on Postgres — scale vertically or add read replicas), and enable edge caching for the search pages. The application layer needs no rewrites.
+To reach 10,000 users: add a CDN for images and upgrade the database tier. No application rewrites needed.
 
 ---
 
 ## W1 — Scraping + Watermark/Branding Removal at Scale
 
-**Scraping pipeline.** At scale, the hard problems are not fetching HTML — they're *staying undetected* and *staying current*. For anti-bot: residential proxy rotation (Oxylabs/Brightdata), random UA + viewport fingerprinting, exponential backoff on 429s, and Playwright for JavaScript-heavy sites (VTS renders listings client-side). Change detection runs via content hash comparison on a per-listing basis — avoid re-processing 10,000 listings when 40 changed. Queue: Bull (Redis-backed), one worker per domain to respect rate limits, separate slow lane for Cloudflare-protected sites (playwright-stealth for TLS/JA3 fingerprint spoofing + 2Captcha/CapSolver for challenge pages — Cloudflare Turnstile requires a different approach than hCaptcha, so both need to be in the solver config). Cross-portal dedup: normalize address + unit → canonical hash; listings appearing on 3 portals collapse to one record. Quality gate: reject any listing missing price, SF, or photos before DB insert.
+**Scraping pipeline.** The hard problems aren't fetching HTML — they're *staying undetected* and *staying current*. Anti-bot: residential proxy rotation (Oxylabs/Brightdata), random UA + viewport fingerprinting, Playwright for JS-heavy sites (VTS renders client-side). Change detection via per-listing content hash — avoid reprocessing 10,000 listings when 40 changed. Queue: Bull (Redis-backed), one worker per domain to respect rate limits. Cross-portal dedup: normalize address + unit → canonical hash; the same listing on 3 portals collapses to one record. Quality gate: reject anything missing price, SF, or photos before DB insert.
 
-**Watermark removal pipeline.** Two-stage: (1) *Known logos* — template matching with ORB features against a maintained logo library (broker firms reuse the same ~200 templates). (2) *Arbitrary watermarks* — SAM2 for segmentation, LaMa for inpainting. OCR (Tesseract or Google Vision) to catch text overlays. Quality gate: SSIM comparison between input and output; if similarity drops below threshold, route to human review queue.
+**Watermark removal.** Two-stage: (1) *Known logos* — ORB template matching against a maintained library (~200 broker templates cover most volume). (2) *Arbitrary watermarks* — SAM2 for segmentation, LaMa for inpainting; OCR (Tesseract or Google Vision) for text overlays. Quality gate: SSIM comparison; route to human review if similarity drops below threshold.
 
-**IP/legal dimension.** This is real. Scraping publicly listed data is legally contested (hiQ v. LinkedIn held it permissible, but that's a circuit split, not settled law). Removing broker watermarks is a DMCA Section 1202 (copyright management information) risk — their logo *is* CMI. Mitigation: watermark removal should strip only *branding*, not substantive image content; maintain clear paper trail that source data was publicly listed; consider licensing agreements with major portals before scale. I'd flag this to counsel before launch.
+**IP/legal dimension.** Scraping publicly listed data is contested (hiQ v. LinkedIn held it permissible, but that's a circuit split). Removing broker watermarks is a DMCA Section 1202 risk — their logo *is* copyright management information. Mitigation: strip only branding, not substantive image content; keep a clear paper trail. Flag to counsel before launch.
 
-**[OPINION]** I'd prioritize Buildium export format as the first real test before the scraping pipeline — lower legal risk, guaranteed data quality, and it directly tests the core product claim.
+**[OPINION]** Start with Buildium import, not scraping — lower legal risk, guaranteed data quality, and it proves the core product claim faster.
 
 ---
 
 ## W2 — Phase-2 QuickBooks Replacement
 
-**Day-1 schema requirements.** The schema (`prisma/schema.prisma`) already makes three bets for phase 2: (1) `Charge` and `Payment` models (`schema.prisma:Charge`, `schema.prisma:Payment`) carry `type` and `description` fields — adding a nullable `accountCodeId` FK when we introduce a chart-of-accounts model is a single migration line, additive to all existing rows; (2) `Lease` uses append-only history rows — renewals create a new `Lease` with `status: "renewed"` on the old one, never mutating `startDate`/`endDate`, which is mandatory for point-in-time financial statements (`schema.prisma:Lease`); (3) `ImportRun` (`schema.prisma:ImportRun`) gives a clean per-import audit trail with source, status, and stats JSON from day one.
+**Day-1 schema bets.** Three decisions now make phase 2 additive, not a rewrite: (1) `Charge` and `Payment` carry `type` + `description` — adding a nullable `accountCodeId` FK for a chart-of-accounts is one migration line, additive to all existing rows (`prisma/schema.prisma:Charge`); (2) `Lease` is append-only — renewals create new rows, never mutating `startDate`/`endDate`, which is mandatory for point-in-time rent roll queries (`prisma/schema.prisma:Lease`); (3) `ImportRun` stores source, status, and stats JSON — gives a clean audit trail and makes re-imports idempotent from day one.
 
-**Minimum feature bar to cancel QuickBooks.** A PM won't cancel QB until we cover: *trust accounting* (security deposit segregation by state statute — NY RPL §7-103 requires separate escrow), *1099-MISC e-filing* (IRS FIRE system integration, due January), *bank reconciliation* (connect plaid/yodlee, match transactions to charges), *month-end close* (lock period, prevent backdating), and a *CPA-friendly audit trail* (every mutation timestamped, user-attributed, reversible with journal entry). Cash-basis vs. accrual toggle is required by most CPAs.
+**Minimum bar to cancel QuickBooks.** A PM won't switch until we ship: *trust accounting* (security deposit segregation — NY RPL §7-103 requires separate escrow per state statute), *1099-MISC e-filing* (IRS FIRE system, due January), *bank reconciliation* (Plaid/Yodlee transaction matching), *month-end close* (lock period, no backdating), and a *CPA-friendly audit trail* (every mutation timestamped and user-attributed). Cash-basis vs. accrual toggle is table stakes for most CPAs.
 
-**[UNCERTAIN] Regulated risks.** Trust accounting is the most dangerous promise to make in year one — per-state rules differ substantially and errors expose us to license revocation for any licensed PM on the platform. I would not ship trust accounting without a real estate attorney reviewing state-by-state requirements and explicit disclaimers. 1099 e-filing has IRS penalty exposure if filed incorrectly. Neither should be in a first public release without legal review.
+**[UNCERTAIN] What I'd be cautious about.** Trust accounting is the highest-risk feature in year one — per-state rules differ substantially and errors can mean license revocation for licensed PMs. I wouldn't ship it without a real estate attorney reviewing state-by-state requirements. 1099 e-filing has IRS penalty exposure if filed incorrectly. Neither belongs in a first public release without legal sign-off.
 
 ---
 
 ## W3 — Extending AI Beyond Search
 
-**Pattern.** The NL query bar in the dashboard (`src/lib/nl-query.ts`) uses a whitelist of named intents — Claude classifies the question into one of 5 buckets, fills a typed param envelope, and a hand-written Prisma executor runs the query. No SQL generation. This pattern scales well: adding a new "intent" is adding one Prisma query and one entry in Claude's prompt catalog.
+**Pattern.** The NL query bar (`src/lib/nl-query.ts`) uses a named-intent whitelist — Claude classifies into one of 5 buckets, fills a typed param envelope, and a hand-written Prisma executor runs the query. No SQL generation. Adding a new capability means adding one Prisma query and one intent entry in Claude's prompt catalog.
 
-**Specific extensions.** Cash flow ("what's my NOI trending?") → add `noi_trend` intent backed by a monthly charge/payment aggregation query. Rent roll export ("email me a rent roll as of last month") → Claude extracts the date, executor runs the point-in-time query (possible because `Lease` keeps history), then a server action generates CSV and sends via Resend/SendGrid. Lease renewal forecasting ("which tenants roll in Q3") → `leases_expiring` intent already exists, extend with `quarter` param. Vendor analysis ("am I overpaying for HVAC?") → `vendors_by_spend` intent extended with category filter.
+**Concrete extensions.** Cash flow ("what's my NOI trending?") → `noi_trend` intent, monthly charge/payment aggregation. Rent roll export ("email me a rent roll as of last month") → Claude extracts the date, executor runs a point-in-time query (possible because `Lease` is append-only), server action generates CSV and sends via Resend. Lease renewal forecasting ("which tenants roll in Q3") → `leases_expiring` intent already exists, extend with `quarter` param. Vendor analysis ("am I overpaying for HVAC?") → `vendors_by_spend` with category filter.
 
-**Shape.** One unified intent router beats N specialized agents for a portfolio this size — the schema is small enough that a single system prompt can describe all queryable surfaces. As the schema grows past ~15 tables, splitting into domain-specific sub-routers (lease router, vendor router, AR router) keeps prompts focused and reduces hallucination.
+**Shape.** One unified router works now — the schema is small enough that a single system prompt describes all queryable surfaces. Past ~15 tables, split into domain sub-routers (lease, vendor, AR) to keep prompts focused and reduce hallucination risk.
 
-**"AI helps" vs "AI decides" line.** AI surfaces data and ranks options. Humans approve lease renewals, write-offs, eviction proceedings. No automated mutations. The guardrail is architectural: the executor only issues Prisma read queries — there is no code path from the NL bar to a database write.
+**"AI helps" vs "AI decides."** AI surfaces data; humans approve lease renewals, write-offs, eviction proceedings. The guardrail is architectural: the executor only calls Prisma read methods — no `$queryRaw`, no `$executeRaw`, no path to a destructive operation regardless of what the user types.
 
 ---
 
@@ -54,17 +54,17 @@ To reach 10,000 users: add a CDN for images, upgrade the database tier (already 
 
 **Domain decomposition.**
 
-*LLM-appropriate:* Natural-language intent parsing ("remove these desks, add three enclosed offices") → structured change spec. Critique of human-drawn plans ("this layout has too little collaborative space for a 40-person team"). Requirement validation ("you asked for 70 people but this floor is only 6,800 SF — that's 97 SF/person, tight but feasible").
+*LLM-appropriate:* Intent parsing ("remove these desks, add three enclosed offices" → structured change spec). Critique of human-drawn plans ("too little collaborative space for 40 people"). Requirement validation ("you asked for 70 people but this is 6,800 SF — 97 SF/person, tight but feasible").
 
-*Geometric algorithms required:* Collision detection (two desks cannot overlap — LLMs cannot reliably reason about spatial coordinates). Space packing (fit N desks in L-shaped room respecting egress corridors) — this is a constraint satisfaction problem, well-solved by backtracking search or simulated annealing, not stochastic text generation. Snap-to-grid, dimension validation, ADA compliance (36-inch corridors) — all require deterministic calculation.
+*Geometry engine required:* Collision detection (two desks cannot overlap — LLMs hallucinate spatial coordinates reliably). Space packing in irregular rooms is a constraint satisfaction problem solved by backtracking search or simulated annealing, not stochastic text generation. Snap-to-grid, dimension validation, egress compliance — all deterministic.
 
-*UI layer:* Drag-drop canvas (Fabric.js or Konva), snap-to-grid, undo stack, SVG/DXF export. This is independent of the AI layer.
+*UI layer:* Drag-drop canvas (Fabric.js or Konva), undo stack, SVG/DXF export. Independent of the AI layer.
 
-**Realistic v1.** Let the LLM critique a *human-drawn* plan and produce a structured requirement spec. Humans draw; AI validates and suggests. Skip auto-layout for v1 — it requires the geometry engine to be production-ready first, and underestimating the constraint satisfaction complexity is where floor plan tools typically over-promise.
+**Realistic v1.** Human draws; AI critiques and produces a structured requirement spec. Skip auto-layout — the geometry engine must be production-ready first, and underestimating constraint satisfaction complexity is exactly where floor plan tools over-promise and ship broken products.
 
-**v2.** AI generates a candidate layout from requirements; human adjusts with drag-drop. Auto-layout engine handles the hard geometry.
+**v2.** AI generates a candidate layout from requirements; human adjusts via drag-drop. Auto-layout handles the hard geometry.
 
-**[OPINION]** The over-promising risk is exactly "AI will generate your floor plan." In practice, LLMs will hallucinate impossible geometries (overlapping rooms, doors through walls). A floor plan where the AI critiques and the human draws is a shipping product in 6 weeks. A floor plan where the AI draws is a research project.
+**[OPINION]** "AI will generate your floor plan" is the over-promise to avoid. LLMs hallucinate impossible geometries — overlapping rooms, doors through walls. An AI that critiques a human-drawn plan is a shippable product in 6 weeks. An AI that draws the plan is a research project. Draw that line clearly before promising it to Ross.
 
 ---
 
@@ -115,6 +115,16 @@ The current schema is *accounting-aware*, not *accounting-complete*. `Charge` ca
 For a proper double-entry GL, each `Charge` maps to a debit on the tenant receivable account and a credit on rental income. The `Payment` reverses the receivable. This requires a `JournalEntry` → `JournalLine` model pair. The `Lease` history model already supports point-in-time rent roll queries needed for period-end close.
 
 Trust accounting (security deposits) requires a separate `TrustAccount` model with per-state balance constraints — this must never commingle with operating funds, which the current single-account model would violate. This is the phase-2 change requiring the most legal review before shipping.
+
+---
+
+## Phase-2 Import Paths: Appfolio and Yardi
+
+Buildium is the day-1 import path. Appfolio and Yardi are phase 2 — not built here, but the architecture makes them additive.
+
+The import pipeline follows a three-layer pattern: **parse** (CSV extraction from zip) → **normalize** (date formats, property name dedup, orphan detection) → **commit** (idempotent Prisma upserts keyed on `externalId`). Adding Appfolio or Yardi means writing a new parser that emits the same intermediate `ParsedBuildium` shape — the normalize and commit layers are reused unchanged. The `ImportRun.source` field (`"buildium" | "appfolio" | "yardi"`) in `schema.prisma:ImportRun` already reserves this enum slot.
+
+Column-name differences (Appfolio uses `unit_id` vs Buildium's `unit_number`, Yardi exports a multi-sheet Excel rather than a zip of CSVs) are contained entirely in the parser. Everything downstream is format-agnostic.
 
 ---
 
