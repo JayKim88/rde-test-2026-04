@@ -208,20 +208,31 @@ Hand-rolled SVG stacked bar chart (~170 lines) as a `"use client"` component wit
 
 ---
 
-### 7. Two extraction patterns: `extractStructured` for BTS search, `callWithTool` for NL query
+### 7. Both AI calls use `callWithTool` — no `extractStructured` in production
 **Files:** `src/lib/claude.ts`, `src/lib/search.ts`, `src/lib/nl-query.ts`
 
-BTS search uses `extractStructured()` — tight system prompt ending in "Return ONLY JSON matching this schema," response regex-stripped and Zod-validated. NL query uses `callWithTool()` — formal Claude tool_use with `tool_choice: { type: "any" }`, forcing the model to call `classify_pm_query` with a typed JSON Schema input; output comes from `toolUse.input`, no text parsing required.
+Both BTS search (`parse_office_query`) and PM NL query (`classify_pm_query`) use `callWithTool()` — Claude `tool_use` with `tool_choice: { type: "any" }`, forcing the model to call the named tool with a typed JSON Schema input. Output is read from `toolUse.input` directly; no text parsing, no regex, no JSON extraction fragility.
 
-**Rejected for BTS:** tool_use — adds ~300–600 output tokens per call (schema echoed in response), material cost at volume. At 100K searches/month the difference is ~$90/month at Haiku prices.
+**Rejected:** `extractStructured()` — parses Claude's text output with a regex strip and `JSON.parse`. This works when Claude cooperates, but Claude occasionally wraps output in prose ("Here is the JSON you requested: ..."), causing parse failures. At 100K searches/month even a 0.5% failure rate means 500 degraded responses. Tool use eliminates the failure mode entirely because the output contract is enforced at the API level.
 
-**Rejected for NL query:** `extractStructured` — NL intent classification is more ambiguous than slot-filling a search filter. The six-intent enum plus nullable params are exactly the shape tool_use was designed for; the JSON-in-text approach added regex fragility for no cost saving (NL query is low-volume — ~5% of searches).
+**Cost consideration:** Tool use echoes the input schema in the response payload (~300–600 output tokens per call). At Haiku prices ($1.25/M output tokens) and 100K BTS searches/month, this adds ~$50–75/month versus `extractStructured`. We accept this cost because: (1) Haiku is already cheap enough that the difference is immaterial at bootstrap scale, (2) parse failures have a hidden cost — retries, user-facing error states, degraded search results — that exceeds the token savings, and (3) consistent patterns across the codebase reduce maintenance surface.
 
-**Why the split:** Different use cases, different tradeoffs. BTS is high-volume, well-structured, cost-sensitive. NL query is low-volume, higher ambiguity, benefits from API-level output enforcement where a malformed intent enum would silently degrade rather than throw.
+**Why both use the same pattern:** Uniformity. `callWithTool` is the correct abstraction for any Claude call where you need guaranteed structured output. `extractStructured` is kept in `src/lib/claude.ts` as a fallback for future use cases where schema size makes token cost prohibitive (e.g., a long multi-field extraction schema).
 
 ---
 
-### 8. Single LLM call returns both prose and filter (BTS search)
+### 8. BTS `features` filter uses per-keyword AND substring match
+**File:** `src/lib/search.ts` — `findListings()`
+
+Each feature keyword Claude extracts (e.g. `["LEED", "column-free"]`) adds an `AND { features: { contains: keyword } }` clause to the Prisma query. The `features` column is stored as a JSON string array; substring matching works because `"LEED"` will always appear as a quoted string token in the JSON.
+
+**Rejected:** Single `features` field OR match; silently ignoring the features array (the initial implementation — the filter was extracted but never applied to the DB query).
+
+**Why AND:** A user who says "LEED certified, column-free" wants both, not either. OR semantics would return listings that satisfy only one condition, diluting precision. AND is stricter but matches user intent. Tradeoff: with many features specified, the result set can go to zero — the degraded-state logic in `src/app/search/page.tsx` already handles empty results by showing all listings with an explanation.
+
+---
+
+### 9. Single LLM call returns both prose and filter (BTS search)
 **File:** `src/lib/search.ts` — `parseSearchQuery()`
 
 One Claude call returns `{ response: string, filter: SearchFilter }` — conversational reply and structured filter in one round trip.
@@ -232,7 +243,7 @@ One Claude call returns `{ response: string, filter: SearchFilter }` — convers
 
 ---
 
-### 9. SSR with `force-dynamic` + `Suspense key` (BTS search page)
+### 10. SSR with `force-dynamic` + `Suspense key` (BTS search page)
 **File:** `src/app/search/page.tsx:8,45`
 
 `export const dynamic = "force-dynamic"` + `<Suspense key={query}>` on the search results component.
@@ -245,7 +256,7 @@ One Claude call returns `{ response: string, filter: SearchFilter }` — convers
 
 ---
 
-### 10. AR aging uses FIFO payment allocation, not simple balance-per-lease
+### 11. AR aging uses FIFO payment allocation, not simple balance-per-lease
 **File:** `src/app/dashboard/page.tsx` — `activeLeases` loop, lines ~47–70
 
 Payments are applied to charges oldest-first (FIFO). Each charge is either fully cleared, partially cleared, or fully outstanding. The oldest unpaid charge's age determines the tenant's AR bucket.
@@ -256,7 +267,7 @@ Payments are applied to charges oldest-first (FIFO). Each charge is either fully
 
 ---
 
-### 11. Dashboard data fetched in a single server component pass — no client waterfalls
+### 12. Dashboard data fetched in a single server component pass — no client waterfalls
 **File:** `src/app/dashboard/page.tsx`
 
 All four widgets (rent roll, AR aging, expense chart, NL query) are rendered from a single async server component. One DB query for active leases (with charges, payments, tenant, unit included), one for work orders. Both queries run in parallel via Promise.all-equivalent (Next.js batches concurrent awaits in server components).
@@ -267,7 +278,7 @@ All four widgets (rent roll, AR aging, expense chart, NL query) are rendered fro
 
 ---
 
-### 12. Charges imported with null leaseId on orphan reference — not dropped
+### 13. Charges imported with null leaseId on orphan reference — not dropped
 **File:** `src/lib/import/commit.ts` — charges loop
 
 Orphan charges (referencing deleted leases) are upserted with `leaseId = null`, amount preserved.
