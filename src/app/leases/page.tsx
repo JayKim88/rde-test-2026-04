@@ -16,7 +16,7 @@ export default async function LeasesPage() {
   const leases = await prisma.lease.findMany({
     orderBy: [{ status: "asc" }, { startDate: "desc" }],
     include: {
-      tenant: { select: { firstName: true, lastName: true, externalId: true } },
+      tenant: { select: { id: true, firstName: true, lastName: true, externalId: true } },
       unit: { select: { unitNumber: true, property: { select: { name: true } } } },
     },
     take: 500,
@@ -59,7 +59,9 @@ export default async function LeasesPage() {
                 <tr key={l.id} className="border-t border-gray-100">
                   <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{l.externalId}</td>
                   <td className="px-4 py-2.5 text-gray-900">
-                    {l.tenant ? `${l.tenant.firstName} ${l.tenant.lastName}` : <span className="text-gray-400 italic">orphan</span>}
+                    {l.tenant
+                      ? <Link href={`/tenants/${l.tenant.id}`} className="hover:text-blue-600">{l.tenant.firstName} {l.tenant.lastName}</Link>
+                      : <span className="text-gray-400 italic">orphan</span>}
                   </td>
                   <td className="px-4 py-2.5 text-gray-600">
                     {l.unit ? `${l.unit.property.name} · ${l.unit.unitNumber}` : <span className="text-gray-400 italic">orphan</span>}

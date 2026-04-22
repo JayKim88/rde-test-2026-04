@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useTransition } from "react"
+import { useRef, useState } from "react"
 import type { CommitResult, PreviewResult } from "@/lib/import/types"
 import { commitAction, previewAction } from "./actions"
 import { PreviewPanel } from "./PreviewPanel"
@@ -15,10 +15,9 @@ export function ImportClient() {
   const [error, setError] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [useSample, setUseSample] = useState(false)
-  const [isPending, startTransition] = useTransition()
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputKey = useRef(0)
 
-  // Not using startTransition for stage changes — we need setStage("analyzing") to
-  // render the spinner immediately before the async server action blocks.
   async function runPreview(sample: boolean) {
     setStage("analyzing")
     setError(null)
@@ -75,6 +74,7 @@ export function ImportClient() {
     setError(null)
     setFile(null)
     setUseSample(false)
+    fileInputKey.current += 1
   }
 
   if (stage === "success" && commitResult) {
@@ -144,10 +144,24 @@ export function ImportClient() {
           </p>
 
           <div className="grid md:grid-cols-2 gap-4">
-            <label className="block border-2 border-dashed border-gray-300 rounded-lg p-5 cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition">
+            <label
+              className={`block border-2 border-dashed rounded-lg p-5 cursor-pointer transition ${
+                dragOver
+                  ? "border-gray-700 bg-gray-100"
+                  : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
+              }`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setDragOver(false)
+                const f = e.dataTransfer.files?.[0] ?? null
+                if (f) setFile(f)
+              }}
+            >
               <div className="text-center">
                 <div className="text-sm font-medium text-gray-900 mb-1">
-                  {file ? file.name : "Click to select zip"}
+                  {file ? file.name : "Drop zip here or click to select"}
                 </div>
                 <div className="text-xs text-gray-500">
                   {file
@@ -156,6 +170,7 @@ export function ImportClient() {
                 </div>
               </div>
               <input
+                key={fileInputKey.current}
                 type="file"
                 accept=".zip,application/zip"
                 className="hidden"
